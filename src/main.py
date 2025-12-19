@@ -80,9 +80,10 @@ def q4_country_with_max_vowel_name_pct(session: Session):
     first_letter = func.upper(func.substr(Player.name, 1, 1))
     is_vowel = case((first_letter.in_(["A", "E", "I", "O", "U"]), 1), else_=0)
 
-    # доля (0..1)
-    ratio = func.sum(is_vowel).cast(Float) / func.count(Player.player_id)
-    pct = (ratio * 100.0).label("pct")
+    pct = (
+        (func.sum(is_vowel).cast(Float) / func.count(Player.player_id).cast(Float) * 100.0)
+        .label("pct")
+    )
 
     stmt = (
         select(
@@ -93,7 +94,9 @@ def q4_country_with_max_vowel_name_pct(session: Session):
         .join(Player, Player.country_id == Country.country_id)
         .group_by(Country.country_id, Country.name)
         .having(func.count(Player.player_id) > 0)
-        .order_by(ratio.desc(), Country.country_id.asc())  # ratio DESC, чтобы брать максимум
+        # 1) максимальный pct
+        # 2) при равенстве pct — минимальный country_id (стабильность)
+        .order_by(pct.desc(), Country.country_id.asc())
         .limit(1)
     )
     return session.execute(stmt).one()
